@@ -1,4 +1,4 @@
-<img src="https://capsule-render.vercel.app/api?type=transparent&color=ffc1cc&height=160&section=header&text=meisseoyeon&fontSize=30" />
+<img src="https://capsule-render.vercel.app/api?type=shark&color=ffc1cc&height=160&section=header&text=meisseoyeon&fontSize=30" />
 
 ## Hi there 👋
 
@@ -25,9 +25,9 @@ Here are some ideas to get you started:
 ![js](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![js](https://img.shields.io/badge/C-00599C?style=for-the-badge&logo=c&logoColor=white)
 ![js](https://img.shields.io/badge/Java-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)
-![js]https://img.shields.io/badge/Spring-6DB33F?style=for-the-badge&logo=spring&logoColor=white()
+![js](https://img.shields.io/badge/Spring-6DB33F?style=for-the-badge&logo=spring&logoColor=white)
 ![js](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
 ![js](https://img.shields.io/badge/MySQL-00000F?style=for-the-badge&logo=mysql&logoColor=white)
 ![js](https://img.shields.io/badge/Figma-F24E1E?style=for-the-badge&logo=figma&logoColor=white)
 
-<img src="https://capsule-render.vercel.app/api?type=transparent&color=ffc1cc&height=160&section=footer&text=Hi&fontSize=30" />
+<img src="https://capsule-render.vercel.app/api?type=shark&color=ffc1cc&height=160&section=footer&text=Hi&fontSize=30" />
