@@ -1,4 +1,4 @@
-<img src="https://capsule-render.vercel.app/api?type=shark&color=ggc1cc&height=160&section=header&text=meisseoyeon&fontSize=30" />
+<img src="https://capsule-render.vercel.app/api?type=shark&color=FFc1cc&height=160&section=header&text=meisseoyeon&fontSize=30" />
 
 ## Hi there 👋
 
