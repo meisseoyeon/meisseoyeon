@@ -26,5 +26,5 @@ jobs:
         uses: atlassian/gajira-transition@master
         with:
           issue: ${{ steps.find.outputs.issue }}
-          transition: 41
-          # [중요] 지라 보드에서 완료 버튼 이름이 "완료"면 "완료"라고 적어야 합니다.
+          transition:  "완료"
+          # [중요] 지라 보드에서 완료 버튼 이름이면 "완료"라고 적어야 합니다.
