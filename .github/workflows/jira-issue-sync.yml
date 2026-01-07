@@ -48,9 +48,6 @@ jobs:
             h2. Description
             ${{ steps.issue-parser.outputs.issueparser_details }}
 
-            h2. References
-            ${{ steps.issue-parser.outputs.issueparser_references }}
-
             ----
             [GitHub Issue Link|${{ github.event.issue.html_url }}]
             
