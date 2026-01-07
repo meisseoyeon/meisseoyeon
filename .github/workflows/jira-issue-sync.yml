@@ -1,13 +1,20 @@
-name: Create Jira Issue on GitHub Issue
+name: Create Jira Issue & Branch
 
 on:
   issues:
-    types: [opened] # 이슈가 오픈되었을 때 실행
+    types: [opened]
 
 jobs:
-  create-issue:
+  create-issue-and-branch:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # 브랜치를 생성(push)하려면 이 권한이 꼭 필요합니다!
+      issues: write    # 이슈에 댓글을 달려면 필요합니다.
+
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
       - name: Login to Jira
         uses: atlassian/gajira-login@master
         env:
@@ -19,10 +26,58 @@ jobs:
         id: create
         uses: atlassian/gajira-create@master
         with:
-          project: "CPG"  # [중요] 본인의 지라 프로젝트 키(Key)로 변경하세요 (예: KAN, PROJ 등)
-          issuetype: "Task"    # 생성할 티켓 타입 (Task, Bug, Story 등)
-          summary: "${{ github.event.issue.title }}" # 지라 제목 = 깃허브 이슈 제목
-          description: "${{ github.event.issue.body }} \n\n [GitHub Issue Link](${{ github.event.issue.html_url }})" # 내용 + 링크 포함
+          project: "CPG"   # 본인 프로젝트 키 확인
+          issuetype: "Task"
+          summary: "${{ github.event.issue.title }}"
+          description: "${{ github.event.issue.body }} \n\n [GitHub Issue Link](${{ github.event.issue.html_url }})"
 
-      - name: Log Created Issue
-        run: echo "Jira Issue ${{ steps.create.outputs.issue }} was created"
+      - name: Create Git Branch with Jira Key
+        run: |
+          # 1. 지라 티켓 번호 가져오기 (예: CPG-101)
+          TICKET_KEY="${{ steps.create.outputs.issue }}"
+          
+          # 2. 브랜치 이름 만들기 (feature/CPG-101-이슈제목)
+          # 공백은 하이픈(-)으로 변경
+          SAFE_TITLE=$(echo "${{ github.event.issue.title }}" | sed 's/ /-/g')
+          BRANCH_NAME="feature/${TICKET_KEY}-${SAFE_TITLE}"
+          
+          # 3. 브랜치 생성 및 푸시
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH_NAME"
+          git push origin "$BRANCH_NAME"
+          
+          # 4. 다음 단계에서 쓰기 위해 변수 저장
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+
+      - name: Update GitHub Issue Title
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const ticketKey = '${{ steps.create.outputs.issue }}';
+            const originalTitle = context.payload.issue.title;
+            
+            // 제목을 "[CPG-101] 원래 제목" 으로 변경
+            github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              title: `[${ticketKey}] ${originalTitle}`
+            })
+
+      - name: Add Comment
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const ticketKey = '${{ steps.create.outputs.issue }}';
+            const branchName = process.env.BRANCH_NAME;
+            const jiraUrl = '${{ secrets.JIRA_BASE_URL }}/browse/' + ticketKey;
+            
+            const body = `✅ **Jira Issue Created**: [${ticketKey}](${jiraUrl}) \n🌿 **Branch Created**: \`${branchName}\``;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            })
