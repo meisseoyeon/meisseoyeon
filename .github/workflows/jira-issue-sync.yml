@@ -1,20 +1,17 @@
-name: Create Jira Issue & Branch
+name: Create Jira Issue
 
 on:
   issues:
     types: [opened]
 
 jobs:
-  create-issue-and-branch:
+  create-issue:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # 브랜치를 생성(push)하려면 이 권한이 꼭 필요합니다!
-      issues: write    # 이슈에 댓글을 달려면 필요합니다.
+      issues: write 
+      # 이슈 제목 수정과 댓글 작성을 위한 권한입니다.
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
-
       - name: Login to Jira
         uses: atlassian/gajira-login@master
         env:
@@ -26,38 +23,20 @@ jobs:
         id: create
         uses: atlassian/gajira-create@master
         with:
-          project: "CPG"   # 본인 프로젝트 키 확인
-          issuetype: "Task"
+          project: "CPG"     # [중요] 본인 프로젝트 키로 확인!
+          issuetype: "Task"  # [중요] "작업" 등 한글일 수 있음 확인!
           summary: "${{ github.event.issue.title }}"
           description: "${{ github.event.issue.body }} \n\n [GitHub Issue Link](${{ github.event.issue.html_url }})"
 
-      - name: Create Git Branch with Jira Key
-        run: |
-          # 1. 지라 티켓 번호 가져오기 (예: CPG-101)
-          TICKET_KEY="${{ steps.create.outputs.issue }}"
-          
-          # 2. 브랜치 이름 만들기 (feature/CPG-101-이슈제목)
-          # 공백은 하이픈(-)으로 변경
-          SAFE_TITLE=$(echo "${{ github.event.issue.title }}" | sed 's/ /-/g')
-          BRANCH_NAME="feature/${TICKET_KEY}-${SAFE_TITLE}"
-          
-          # 3. 브랜치 생성 및 푸시
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -b "$BRANCH_NAME"
-          git push origin "$BRANCH_NAME"
-          
-          # 4. 다음 단계에서 쓰기 위해 변수 저장
-          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
-
-      - name: Update GitHub Issue Title
+      - name: Update GitHub Issue Title with Jira Key
         uses: actions/github-script@v6
         with:
           script: |
             const ticketKey = '${{ steps.create.outputs.issue }}';
             const originalTitle = context.payload.issue.title;
             
-            // 제목을 "[CPG-101] 원래 제목" 으로 변경
+            // 제목을 "[CPG-101] 원래 제목" 형태로 변경
+            // (이렇게 해야 나중에 닫을 때 티켓을 잘 찾습니다)
             github.rest.issues.update({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -65,19 +44,16 @@ jobs:
               title: `[${ticketKey}] ${originalTitle}`
             })
 
-      - name: Add Comment
+      - name: Add Comment with Jira Link
         uses: actions/github-script@v6
         with:
           script: |
             const ticketKey = '${{ steps.create.outputs.issue }}';
-            const branchName = process.env.BRANCH_NAME;
             const jiraUrl = '${{ secrets.JIRA_BASE_URL }}/browse/' + ticketKey;
-            
-            const body = `✅ **Jira Issue Created**: [${ticketKey}](${jiraUrl}) \n🌿 **Branch Created**: \`${branchName}\``;
             
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: body
+              body: `✅ **Jira Issue Created**: [${ticketKey}](${jiraUrl})`
             })
