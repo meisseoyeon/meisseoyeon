@@ -18,47 +18,26 @@ jobs:
           JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
 
-      # 1. 이슈 본문 변환 (안전한 방식)
-      - name: Convert Markdown to Jira format
-        id: format
-        uses: actions/github-script@v6
-        with:
-          script: |
-            let body = context.payload.issue.body || "";
-            
-            // HTML 주석 제거
-            body = body.replace(//g, '');
-            
-            // 헤더 변환 (# -> h1, ## -> h2)
-            body = body.replace(/^# (.*$)/gm, 'h1. $1');
-            body = body.replace(/^## (.*$)/gm, 'h2. $1');
-            body = body.replace(/^### (.*$)/gm, 'h3. $1');
-            
-            // 앞뒤 공백 제거
-            body = body.trim();
-            
-            core.setOutput('jira_description', body);
-
-      # 2. 지라 이슈 생성
       - name: Create Jira Issue
         id: create
         uses: atlassian/gajira-create@master
         with:
-          project: "CPG"     # 본인 프로젝트 키 확인
-          issuetype: "Task"  # 본인 이슈 타입 확인
+          project: "CPG"     # [확인] 본인 프로젝트 키
+          issuetype: "Task"  # [확인] 본인 이슈 타입
           summary: "${{ github.event.issue.title }}"
-          description: "${{ steps.format.outputs.jira_description }} \n\n [GitHub Issue Link](${{ github.event.issue.html_url }})"
+          # 복잡한 변환 없이 원본 그대로 보냅니다 (에러 방지)
+          description: "${{ github.event.issue.body }} \n\n [GitHub Issue Link](${{ github.event.issue.html_url }})"
 
-      # 3. 깃허브 이슈 제목 수정 (에러 수정됨)
-      - name: Update GitHub Issue Title with Jira Key
+      - name: Update GitHub Issue Title
         uses: actions/github-script@v6
         env:
-          TICKET_KEY: ${{ steps.create.outputs.issue }} # 여기서 환경변수로 넘김
+          TICKET_KEY: ${{ steps.create.outputs.issue }}
         with:
           script: |
             const ticketKey = process.env.TICKET_KEY;
             const originalTitle = context.payload.issue.title;
             
+            // 제목 업데이트
             await github.rest.issues.update({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -66,21 +45,20 @@ jobs:
               title: `[${ticketKey}] ${originalTitle}`
             });
 
-      # 4. 댓글 달기 (에러 수정됨)
-      - name: Add Comment with Jira Link
+      - name: Add Comment
         uses: actions/github-script@v6
         env:
           TICKET_KEY: ${{ steps.create.outputs.issue }}
-          JIRA_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_DOMAIN: ${{ secrets.JIRA_BASE_URL }}
         with:
           script: |
             const ticketKey = process.env.TICKET_KEY;
-            const jiraBaseUrl = process.env.JIRA_URL;
-            const jiraUrl = `${jiraBaseUrl}/browse/${ticketKey}`;
+            const domain = process.env.JIRA_DOMAIN;
             
+            // 댓글 생성
             await github.rest.issues.createComment({
-              issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `✅ **Jira Issue Created**: [${ticketKey}](${jiraUrl})`
+              issue_number: context.issue.number,
+              body: `✅ **Jira Issue Created**: [${ticketKey}](${domain}/browse/${ticketKey})`
             });
