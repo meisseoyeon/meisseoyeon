@@ -1,0 +1,28 @@
+name: Create Jira Issue on GitHub Issue
+
+on:
+  issues:
+    types: [opened] # 이슈가 오픈되었을 때 실행
+
+jobs:
+  create-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to Jira
+        uses: atlassian/gajira-login@master
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+
+      - name: Create Jira Issue
+        id: create
+        uses: atlassian/gajira-create@master
+        with:
+          project: "DEV"  # [중요] 본인의 지라 프로젝트 키(Key)로 변경하세요 (예: KAN, PROJ 등)
+          type: "Task"    # 생성할 티켓 타입 (Task, Bug, Story 등)
+          summary: "${{ github.event.issue.title }}" # 지라 제목 = 깃허브 이슈 제목
+          description: "${{ github.event.issue.body }} \n\n [GitHub Issue Link](${{ github.event.issue.html_url }})" # 내용 + 링크 포함
+
+      - name: Log Created Issue
+        run: echo "Jira Issue ${{ steps.create.outputs.issue }} was created"
