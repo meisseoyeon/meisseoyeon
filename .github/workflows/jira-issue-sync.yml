@@ -18,6 +18,27 @@ jobs:
           JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
 
+       # 마크다운 -> Jira 변경
+    - name: Convert markdown to Jira Syntax
+      uses: peter-evans/jira2md@v1
+      id: md2jira
+      with:
+        input-text: |
+          ## Summary 
+          ${{ steps.issue-parser.outputs.issueparser_description }}
+          
+          ## Description
+          ${{ steps.issue-parser.outputs.issueparser_details }}
+          
+          ## Reference
+          ${{ steps.issue-parser.outputs.issueparser_references }}
+          
+          ## Github Issue Link
+          ${{ github.event.issue.html_url }}
+          
+          
+        mode: md2jira
+        
       - name: Create Jira Issue
         id: create
         uses: atlassian/gajira-create@master
@@ -25,9 +46,8 @@ jobs:
           project: "CPG"     # [확인] 본인 프로젝트 키
           issuetype: "Task"  # [확인] 본인 이슈 타입
           summary: "${{ github.event.issue.title }}"
-          # 복잡한 변환 없이 원본 그대로 보냅니다 (에러 방지)
-          description: "${{ github.event.issue.body }} \n\n [GitHub Issue Link](${{ github.event.issue.html_url }})"
-
+          description: "${{ steps.md2jira.outputs.output-text }}"
+        
       - name: Update GitHub Issue Title
         uses: actions/github-script@v6
         env:
@@ -44,7 +64,10 @@ jobs:
               issue_number: context.issue.number,
               title: `[${ticketKey}] ${originalTitle}`
             });
-
+      # Jira 이슈 생성자 로그
+    - name: Log created issue
+      run: echo "Issue ${{ github.actor }} was created"
+      
       - name: Add Comment
         uses: actions/github-script@v6
         env:
