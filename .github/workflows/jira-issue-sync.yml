@@ -19,7 +19,7 @@ jobs:
         id: create
         uses: atlassian/gajira-create@master
         with:
-          project: "DEV"  # [중요] 본인의 지라 프로젝트 키(Key)로 변경하세요 (예: KAN, PROJ 등)
+          project: "CPG"  # [중요] 본인의 지라 프로젝트 키(Key)로 변경하세요 (예: KAN, PROJ 등)
           type: "Task"    # 생성할 티켓 타입 (Task, Bug, Story 등)
           summary: "${{ github.event.issue.title }}" # 지라 제목 = 깃허브 이슈 제목
           description: "${{ github.event.issue.body }} \n\n [GitHub Issue Link](${{ github.event.issue.html_url }})" # 내용 + 링크 포함
