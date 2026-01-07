@@ -1,111 +1,107 @@
-name: Github with jira
-on: 
-  issues: 
-    types: [opened] 
+name: Github with Jira Integration
+
+on:
+  issues:
+    types: [opened]
 
 jobs:
-
-  jira-login: 
-    name: Jira Login
+  create-issue-and-branch:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # 브랜치 생성을 위해 필수
+      issues: write    # 이슈 수정 및 댓글 작성을 위해 필수
+
     steps:
-    # githut secret 파싱 -> github.actor 생성자에 맞게 변환
-    - name: Secrets Parsing
-      id: secret
-      run: |
-        echo "JIRA_API_TOKEN=JIRA_API_TOKEN_${{ github.actor }}" >> $GITHUB_OUTPUT
-        echo "JIRA_USER_EMAIL=JIRA_USER_EMAIL_${{ github.actor }}" >> $GITHUB_OUTPUT
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    # Jira Login
-    - name: Login
-      uses: atlassian/gajira-login@v3 
-      env: 
-        JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }} 
-        JIRA_API_TOKEN: ${{ secrets[steps.secret.outputs.JIRA_API_TOKEN] }}
-        JIRA_USER_EMAIL: ${{ secrets[steps.secret.outputs.JIRA_USER_EMAIL] }}
-        
-    # ref에 브랜치로 이동    
-    - name: Checkout develop code
-      uses: actions/checkout@v4
-      with:
-        ref: develop
+      # 1. 이슈 템플릿 파싱 (템플릿에 입력된 내용을 분해)
+      - name: Issue Parser
+        uses: stefanbuck/github-issue-parser@v3
+        id: issue-parser
+        with:
+          template-path: .github/ISSUE_TEMPLATE/jira_issue_form.yml # [중요] 1단계에서 만든 파일명과 같아야 함
 
-    # 생성한 이슈 파싱
-    - name: Issue Parser
-      uses: stefanbuck/github-issue-parser@v3
-      id: issue-parser
-      with:
-        template-path: .github/ISSUE_TEMPLATE/github_with_jira_issue.yml
+      # 2. 마크다운을 지라 문법으로 변환
+      - name: Convert markdown to Jira Syntax
+        uses: peter-evans/jira2md@v1
+        id: md2jira
+        with:
+          input-text: |
+            h2. Summary
+            ${{ steps.issue-parser.outputs.issueparser_description }}
 
-    # 생성한 이슈 파싱 로그
-    - name: Log Issue Parser
-      run: echo '${{ steps.issue-parser.outputs.jsonString }}'
+            h2. Description
+            ${{ steps.issue-parser.outputs.issueparser_details }}
 
-    # 마크다운 -> Jira 변경
-    - name: Convert markdown to Jira Syntax
-      uses: peter-evans/jira2md@v1
-      id: md2jira
-      with:
-        input-text: |
-          ## Summary 
-          ${{ steps.issue-parser.outputs.issueparser_description }}
-          
-          ## Description
-          ${{ steps.issue-parser.outputs.issueparser_details }}
-          
-          ## Reference
-          ${{ steps.issue-parser.outputs.issueparser_references }}
-          
-          ## Github Issue Link
-          ${{ github.event.issue.html_url }}
-          
-          
-        mode: md2jira
+            h2. Reference
+            ${{ steps.issue-parser.outputs.issueparser_references }}
 
-    # Jira 이슈 생성 [파트] 이슈 타이틀 
-    - name: Create Issue 
-      id: create
-      uses: atlassian/gajira-create@v3
-      with:
-        project: "CPG"     # [확인] 본인 프로젝트 키
-        issuetype: "Task"  # [확인] 본인 이슈 타입 (Task, 작업 등)
-        summary: "[Server] ${{ github.event.issue.title }}"
-        description: "${{ steps.md2jira.outputs.output-text }}"
-        fields: |
-          {
+            h2. Github Issue Link
+            ${{ github.event.issue.html_url }}
+          mode: md2jira
+
+      # 3. Jira 로그인
+      - name: Login to Jira
+        uses: atlassian/gajira-login@v3
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+
+      # 4. Jira 이슈 생성 (조건부 필드 처리 포함)
+      - name: Create Jira Issue
+        id: create
+        uses: atlassian/gajira-create@v3
+        with:
+          project: "CPG"     # [확인] 본인 프로젝트 키
+          issuetype: "Task"  # [확인] 본인 이슈 타입 (Task, 작업 등)
+          summary: "[BE] ${{ github.event.issue.title }}"
+          description: "${{ steps.md2jira.outputs.output-text }}"
+          # 만약 Parent(에픽) 키가 입력되었다면 연결하고, 없으면 그냥 만듭니다.
+          fields: |
+            {
               "parent": {
-                 "key": "BVVER24-${{ steps.issue-parser.outputs.issueparser_parent }}"
+                 "key": "${{ steps.issue-parser.outputs.issueparser_parent }}"
               }
-          }
+            }
 
-    # Jira 이슈 생성 로그
-    - name: Log created issue
-      run: echo "Issue ${{ steps.create.outputs.issue }} was created"         
+      # 5. 생성 로그 출력
+      - name: Log created issue
+        run: echo "Jira Issue ${{ steps.create.outputs.issue }} created."
 
-    # Jira 이슈 생성자 로그
-    - name: Log created issue
-      run: echo "Issue ${{ github.actor }} was created"
+      # 6. 깃허브 이슈 제목 업데이트 ([CPG-123] 제목)
+      - name: Update issue title
+        uses: actions-cool/issues-helper@v3
+        with:
+          actions: "update-issue"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: "[${{ steps.create.outputs.issue }}] ${{ github.event.issue.title }}"
 
-    # Github 이슈 타이틀 수정 "[이슈번호] 이슈타이틀"
-    - name: Update issue title
-      uses: actions-cool/issues-helper@v3
-      with:
-        actions: "update-issue"
-        token: ${{ secrets.GITHUB_TOKEN }}
-        title: "[${{ steps.create.outputs.issue }}] ${{ github.event.issue.title }}"
-    
-    # Github 이슈 자기 자신 Assignnes 등록
-    - name: Add assigness
-      uses: actions-cool/issues-helper@v3
-      with:
-        actions: 'add-assignees'
-        uses: actions-cool/issues-helper@v3      
-        token: ${{ secrets.GITHUB_TOKEN }}
-        issue-number: ${{ github.event.issue.number }}
-        assignees: '${{ github.actor }}'
+      # 7. 깃허브 담당자 지정 (이슈 만든 사람)
+      - name: Add assignees
+        uses: actions-cool/issues-helper@v3
+        with:
+          actions: 'add-assignees'
+          token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ github.event.issue.number }}
+          assignees: '${{ github.actor }}'
+
+      # 8. 브랜치 자동 생성 (예: feature/CPG-123-login)
+      - name: Create branch with Ticket number
+        run: |
+          # 변수 설정
+          BRANCH_TYPE="${{ steps.issue-parser.outputs.issueparser_branchType }}"
+          TICKET_KEY="${{ steps.create.outputs.issue }}"
+          BRANCH_NAME="${{ steps.issue-parser.outputs.issueparser_branchName }}"
           
-    # 브랜치 생성 ->  "브랜치타입"/"지라 이슈번호"-"브랜치 이름"
-    - name: Create branch with Ticket number
-      run: |
-        git checkout -b ${{ steps.issue-parser.outputs.issueparser_branchType }}/${{ steps.create.outputs.issue }}-${{ steps.issue-parser.outputs.issueparser_branchName }}
-        git push origin ${{ steps.issue-parser.outputs.issueparser_branchType }}/${{ steps.create.outputs.issue }}-${{ steps.issue-parser.outputs.issueparser_branchName }}
+          # 브랜치명 조합: type/TicketKey-name
+          NEW_BRANCH="${BRANCH_TYPE}/${TICKET_KEY}-${BRANCH_NAME}"
+          
+          # 브랜치 생성 및 푸시
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "${NEW_BRANCH}"
+          git push origin "${NEW_BRANCH}"
+          
+          echo "Branch ${NEW_BRANCH} created."
