@@ -53,32 +53,7 @@ jobs:
 
             ----
             [GitHub Issue Link|${{ github.event.issue.html_url }}]
-
-      # 4. 브랜치 생성 (형식: 타입/티켓번호-이름)
-      - name: Create Git Branch
-        run: |
-          # 변수 가져오기
-          TYPE="${{ steps.issue-parser.outputs.issueparser_branchType }}"
-          KEY="${{ steps.create.outputs.issue }}"
-          NAME="${{ steps.issue-parser.outputs.issueparser_branchName }}"
-          
-          # 브랜치 이름에 공백이 있다면 하이픈(-)으로 변경
-          SAFE_NAME=$(echo "$NAME" | sed 's/ /-/g')
-          
-          # 최종 브랜치명 조합 (예: feature/CPG-123-login-api)
-          BRANCH_NAME="${TYPE}/${KEY}-${SAFE_NAME}"
-          
-          # 깃 설정 및 브랜치 생성/푸시
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # main 브랜치 기준으로 새 브랜치 생성
-          git checkout -b "$BRANCH_NAME"
-          git push origin "$BRANCH_NAME"
-          
-          # 다음 단계에서 쓰기 위해 환경 변수 저장
-          echo "CREATED_BRANCH=$BRANCH_NAME" >> $GITHUB_ENV
-
+            
       # 5. 깃허브 이슈 제목 업데이트
       - name: Update GitHub Issue Title
         uses: actions-cool/issues-helper@v3
