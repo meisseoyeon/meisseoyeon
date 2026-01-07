@@ -1,5 +1,5 @@
 name: Github with JIRA Issue Template
-description: '[비긴, 비건] 프로젝트 Github & Jira 이슈 템플릿입니다.'
+description: '유레카 종합 프로젝트 Github & Jira 이슈 템플릿입니다.'
 
 body:
   - type: dropdown
@@ -8,26 +8,9 @@ body:
       label: 📥 Issue Type
       description: 'Jira 이슈 타입을 선택해주세요.'
       options:
-        - 개발
+        - Task
+        - Story
       default: 0
-    validations:
-      required: true
-
-  - type: input
-    id: parent
-    attributes:
-      label: '🔖 상위 작업 Ticket Number'
-      description: '상위 작업의 Ticket Number를 기입해주세요'
-      placeholder: 'BVVER24-xx에서 xx에 해당하는 부분만 기입해주세요! ex) 1'
-    validations:
-      required: true
-      
-  - type: input
-    id: description
-    attributes:
-      label: '🌞 이슈 요약 Summary'
-      description: '이슈에 대해서 간략히 설명해주세요'
-      placeholder: '이슈 요약'
     validations:
       required: true
 
@@ -48,10 +31,12 @@ body:
       label: '🔌 브랜치 타입 Branch-Type'
       description: '생성 할 브랜치 타입을 선택해주세요.'
       options:
+        - main
+        - develop
         - feature
-        - bug
-        - hotfix
+        - fix
         - refactor
+        - hotfix
     validations:
       required: true    
       
@@ -59,7 +44,7 @@ body:
     id: branchName
     attributes: 
       label: '💡 브랜치 이름 Branch-Name'
-      description: '만든 브랜치는 [브랜치 타입]/BVVER-no-[작성한 브랜치 이름]'
+      description: '만든 브랜치는 [브랜치 타입]/[작성한 브랜치 이름]'
       placeholder: 'Branch Name'
     validations:
       required: true
