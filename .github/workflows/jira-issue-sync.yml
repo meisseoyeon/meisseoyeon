@@ -18,26 +18,6 @@ jobs:
           JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
 
-      # ▼ [기능 추가] 이슈 본문 깔끔하게 다듬기 (Safe Mode)
-      - name: Pre-process Issue Body
-        id: format
-        uses: actions/github-script@v6
-        with:
-          result-encoding: string
-          script: |
-            let body = context.payload.issue.body || "";
-            
-            // 1. HTML 주석() 제거
-            body = body.replace(//g, '');
-            
-            // 2. 마크다운 헤더를 지라(Jira) 형식으로 변환 (# -> h1.)
-            body = body.replace(/^# (.*$)/gm, 'h1. $1');
-            body = body.replace(/^## (.*$)/gm, 'h2. $1');
-            body = body.replace(/^### (.*$)/gm, 'h3. $1');
-            
-            // 3. 앞뒤 불필요한 공백 제거 후 결과 반환
-            return body.trim();
-
       - name: Create Jira Issue
         id: create
         uses: atlassian/gajira-create@master
@@ -45,8 +25,8 @@ jobs:
           project: "CPG"     # [확인] 본인 프로젝트 키
           issuetype: "Task"  # [확인] 본인 이슈 타입
           summary: "${{ github.event.issue.title }}"
-          # ▼ [중요] 위 단계에서 다듬어진 내용(result)을 가져옵니다.
-          description: "${{ steps.format.outputs.result }} \n\n [GitHub Issue Link](${{ github.event.issue.html_url }})"
+          # 복잡한 변환 없이 원본 그대로 보냅니다 (에러 방지)
+          description: "${{ github.event.issue.body }} \n\n [GitHub Issue Link](${{ github.event.issue.html_url }})"
 
       - name: Update GitHub Issue Title
         uses: actions/github-script@v6
@@ -57,6 +37,7 @@ jobs:
             const ticketKey = process.env.TICKET_KEY;
             const originalTitle = context.payload.issue.title;
             
+            // 제목 업데이트
             await github.rest.issues.update({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -74,6 +55,7 @@ jobs:
             const ticketKey = process.env.TICKET_KEY;
             const domain = process.env.JIRA_DOMAIN;
             
+            // 댓글 생성
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
