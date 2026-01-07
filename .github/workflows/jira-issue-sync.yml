@@ -1,47 +1,29 @@
-name: Github with Jira Integration
+name: Jira Issue & Branch Sync
 
 on:
   issues:
     types: [opened]
 
 jobs:
-  create-issue-and-branch:
+  create-jira-issue:
     runs-on: ubuntu-latest
     permissions:
       contents: write  # 브랜치 생성을 위해 필수
       issues: write    # 이슈 수정 및 댓글 작성을 위해 필수
 
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 1. 이슈 템플릿 파싱 (템플릿에 입력된 내용을 분해)
-      - name: Issue Parser
+      # 1. 이슈 템플릿 내용 분석 (Parsing)
+      # 템플릿 파일(.github/ISSUE_TEMPLATE/이슈파일명.yml)의 경로를 정확히 맞춰주세요!
+      - name: Parse Issue Template
         uses: stefanbuck/github-issue-parser@v3
         id: issue-parser
         with:
-          template-path: .github/ISSUE_TEMPLATE/jira_issue_form.yml # [중요] 1단계에서 만든 파일명과 같아야 함
+          template-path: .github/ISSUE_TEMPLATE/github_with_jira_issue.yml # [중요] 실제 템플릿 파일명으로 수정하세요
 
-      # 2. 마크다운을 지라 문법으로 변환
-      - name: Convert markdown to Jira Syntax
-        uses: peter-evans/jira2md@v1
-        id: md2jira
-        with:
-          input-text: |
-            h2. Summary
-            ${{ steps.issue-parser.outputs.issueparser_description }}
-
-            h2. Description
-            ${{ steps.issue-parser.outputs.issueparser_details }}
-
-            h2. Reference
-            ${{ steps.issue-parser.outputs.issueparser_references }}
-
-            h2. Github Issue Link
-            ${{ github.event.issue.html_url }}
-          mode: md2jira
-
-      # 3. Jira 로그인
+      # 2. Jira 로그인
       - name: Login to Jira
         uses: atlassian/gajira-login@v3
         env:
@@ -49,59 +31,81 @@ jobs:
           JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
 
-      # 4. Jira 이슈 생성 (조건부 필드 처리 포함)
+      # 3. Jira 이슈 생성
       - name: Create Jira Issue
         id: create
         uses: atlassian/gajira-create@v3
         with:
-          project: "CPG"     # [확인] 본인 프로젝트 키
-          issuetype: "Task"  # [확인] 본인 이슈 타입 (Task, 작업 등)
+          project: "CPG"  # [확인] 본인 프로젝트 키 (예: URECA, CPG 등)
+          
+          # 템플릿에서 선택한 Issue Type (Task, Story)을 그대로 사용
+          issuetype: "${{ steps.issue-parser.outputs.issueparser_issueType }}"
+          
           summary: "[BE] ${{ github.event.issue.title }}"
-          description: "${{ steps.md2jira.outputs.output-text }}"
-          # 만약 Parent(에픽) 키가 입력되었다면 연결하고, 없으면 그냥 만듭니다.
-          fields: |
-            {
-              "parent": {
-                 "key": "${{ steps.issue-parser.outputs.issueparser_parent }}"
-              }
-            }
+          
+          # 상세 내용과 참조 링크를 조합해서 지라 본문에 넣음
+          description: |
+            h2. Description
+            ${{ steps.issue-parser.outputs.issueparser_details }}
 
-      # 5. 생성 로그 출력
-      - name: Log created issue
-        run: echo "Jira Issue ${{ steps.create.outputs.issue }} created."
+            h2. References
+            ${{ steps.issue-parser.outputs.issueparser_references }}
 
-      # 6. 깃허브 이슈 제목 업데이트 ([CPG-123] 제목)
-      - name: Update issue title
+            ----
+            [GitHub Issue Link|${{ github.event.issue.html_url }}]
+
+      # 4. 브랜치 생성 (형식: 타입/티켓번호-이름)
+      - name: Create Git Branch
+        run: |
+          # 변수 가져오기
+          TYPE="${{ steps.issue-parser.outputs.issueparser_branchType }}"
+          KEY="${{ steps.create.outputs.issue }}"
+          NAME="${{ steps.issue-parser.outputs.issueparser_branchName }}"
+          
+          # 브랜치 이름에 공백이 있다면 하이픈(-)으로 변경
+          SAFE_NAME=$(echo "$NAME" | sed 's/ /-/g')
+          
+          # 최종 브랜치명 조합 (예: feature/CPG-123-login-api)
+          BRANCH_NAME="${TYPE}/${KEY}-${SAFE_NAME}"
+          
+          # 깃 설정 및 브랜치 생성/푸시
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # main 브랜치 기준으로 새 브랜치 생성
+          git checkout -b "$BRANCH_NAME"
+          git push origin "$BRANCH_NAME"
+          
+          # 다음 단계에서 쓰기 위해 환경 변수 저장
+          echo "CREATED_BRANCH=$BRANCH_NAME" >> $GITHUB_ENV
+
+      # 5. 깃허브 이슈 제목 업데이트
+      - name: Update GitHub Issue Title
         uses: actions-cool/issues-helper@v3
         with:
           actions: "update-issue"
           token: ${{ secrets.GITHUB_TOKEN }}
           title: "[${{ steps.create.outputs.issue }}] ${{ github.event.issue.title }}"
 
-      # 7. 깃허브 담당자 지정 (이슈 만든 사람)
-      - name: Add assignees
-        uses: actions-cool/issues-helper@v3
+      # 6. 댓글로 알림 (지라 링크 + 생성된 브랜치명)
+      - name: Add Comment
+        uses: actions/github-script@v6
+        env:
+          TICKET_KEY: ${{ steps.create.outputs.issue }}
+          JIRA_URL: ${{ secrets.JIRA_BASE_URL }}
+          BRANCH: ${{ env.CREATED_BRANCH }}
         with:
-          actions: 'add-assignees'
-          token: ${{ secrets.GITHUB_TOKEN }}
-          issue-number: ${{ github.event.issue.number }}
-          assignees: '${{ github.actor }}'
-
-      # 8. 브랜치 자동 생성 (예: feature/CPG-123-login)
-      - name: Create branch with Ticket number
-        run: |
-          # 변수 설정
-          BRANCH_TYPE="${{ steps.issue-parser.outputs.issueparser_branchType }}"
-          TICKET_KEY="${{ steps.create.outputs.issue }}"
-          BRANCH_NAME="${{ steps.issue-parser.outputs.issueparser_branchName }}"
-          
-          # 브랜치명 조합: type/TicketKey-name
-          NEW_BRANCH="${BRANCH_TYPE}/${TICKET_KEY}-${BRANCH_NAME}"
-          
-          # 브랜치 생성 및 푸시
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -b "${NEW_BRANCH}"
-          git push origin "${NEW_BRANCH}"
-          
-          echo "Branch ${NEW_BRANCH} created."
+          script: |
+            const { TICKET_KEY, JIRA_URL, BRANCH } = process.env;
+            
+            const body = `
+            ✅ **Jira Issue Created**: [${TICKET_KEY}](${JIRA_URL}/browse/${TICKET_KEY})
+            🌿 **Branch Created**: \`${BRANCH}\`
+            `;
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
