@@ -24,15 +24,6 @@ body:
         - 이슈 내용 2
     validations:
       required: true
-
-  - type: input
-    id: branchName
-    attributes: 
-      label: '💡 브랜치 이름 Branch-Name'
-      description: '만든 브랜치는 [브랜치 타입]/[작성한 브랜치 이름]'
-      placeholder: 'Branch Name'
-    validations:
-      required: true
       
   - type: textarea
     id: references
