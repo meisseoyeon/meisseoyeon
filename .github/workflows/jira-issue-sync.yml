@@ -15,34 +15,15 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 1. 어떤 템플릿을 썼는지 라벨로 판단
-      - name: Determine Issue Template & Branch Prefix
-        id: template-check
-        run: |
-          # 라벨에 '버그'가 포함되어 있으면 버그 리포트
-          if [[ "${{ contains(github.event.issue.labels.*.name, '🐛 버그') }}" == "true" ]]; then
-            echo "template_path=.github/ISSUE_TEMPLATE/bug_report.yml" >> $GITHUB_OUTPUT
-            echo "branch_prefix=bugfix" >> $GITHUB_OUTPUT
-            
-          # 라벨에 '기능'이 포함되어 있으면 기능 리포트
-          elif [[ "${{ contains(github.event.issue.labels.*.name, '✨ 기능') }}" == "true" ]]; then
-            echo "template_path=.github/ISSUE_TEMPLATE/feature_report.yml" >> $GITHUB_OUTPUT
-            echo "branch_prefix=feature" >> $GITHUB_OUTPUT
-            
-          # 그 외에는 커스텀(Task) 리포트
-          else
-            echo "template_path=.github/ISSUE_TEMPLATE/custom_report.yml" >> $GITHUB_OUTPUT
-            echo "branch_prefix=task" >> $GITHUB_OUTPUT
-          fi
-
-      # 2. 이슈 템플릿 내용 분석 (동적으로 경로 설정)
+      # 1. 이슈 템플릿 내용 분석 (Parsing)
+      # 템플릿 파일(.github/ISSUE_TEMPLATE/이슈파일명.yml)의 경로를 정확히 맞춰주세요!
       - name: Parse Issue Template
         uses: stefanbuck/github-issue-parser@v3
         id: issue-parser
         with:
-          template-path: ${{ steps.template-check.outputs.template_path }}
+          template-path: .github/ISSUE_TEMPLATE/jira_issue_form.yml # [중요] 실제 템플릿 파일명으로 수정하세요
 
-      # 3. Jira 로그인
+      # 2. Jira 로그인
       - name: Login to Jira
         uses: atlassian/gajira-login@v3
         env:
@@ -50,22 +31,26 @@ jobs:
           JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
 
-      # 4. Jira 이슈 생성
+      # 3. Jira 이슈 생성
       - name: Create Jira Issue
         id: create
         uses: atlassian/gajira-create@v3
         with:
-          project: "CPG"  # [확인] 본인 프로젝트 키로 수정
+          project: "CPG"  # [확인] 본인 프로젝트 키 (예: URECA, CPG 등)
+          
+          # 템플릿에서 선택한 Issue Type (Task, Story)을 그대로 사용
           issuetype: "${{ steps.issue-parser.outputs.issueparser_issueType }}"
-          summary: "[BE] ${{ github.event.issue.title }}"
+          
+          summary: "${{ github.event.issue.title }}"
+          
+          # 상세 내용과 참조 링크를 조합해서 지라 본문에 넣음
           description: |
             h2. Description
             ${{ steps.issue-parser.outputs.issueparser_details }}
-
             ----
             [GitHub Issue Link|${{ github.event.issue.html_url }}]
-
-      # 5. 깃허브 이슈 제목 업데이트 (지라 키 포함)
+            
+      # 5. 깃허브 이슈 제목 업데이트
       - name: Update GitHub Issue Title
         uses: actions-cool/issues-helper@v3
         with:
@@ -73,4 +58,4 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           title: "[${{ steps.create.outputs.issue }}] ${{ github.event.issue.title }}"
 
-     
+      
